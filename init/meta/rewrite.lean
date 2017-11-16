@@ -1,24 +1,26 @@
 /-
 Copyright (c) 2017 Gabriel Ebner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Gabriel Ebner
+Authors: Gabriel Ebner, Jeremy Avigad
 -/
 import ..path
 open tactic expr
 
 namespace hott
 
-meta def instantiate_with_metas : expr → tactic expr | e := do
+-- accumulates a list of metavariables that should be instantiated by class inference, and returns it
+meta def instantiate_with_metas : expr → list expr → tactic (expr × list expr) | e insts := do
 t ← infer_type e >>= whnf,
-if ¬t.is_pi then return e else do
+if ¬t.is_pi then return (e, list.reverse insts) else do
 x ← mk_meta_var t.binding_domain,
-instantiate_with_metas (e.app x)
+instantiate_with_metas (e.app x) 
+  (if t.binding_info = binder_info.inst_implicit then x :: insts else insts)
 
 meta def mk_eq_inv (eqn : expr) : tactic expr :=
 mk_app `hott.eq.inverse [eqn]
 
 meta def rewrite_core (eqn : expr) (tgt : expr) (cfg : rewrite_cfg) : tactic (expr × expr × expr) := do
-eqn ← instantiate_with_metas eqn,
+(eqn, insts) ← instantiate_with_metas eqn [],
 eqn ← if cfg.symm then mk_eq_inv eqn else return eqn,
 `(@hott.eq %%A %%lhs %%rhs) ← infer_type eqn
     | (do e ← pp eqn, fail $ to_fmt "rewrite_core: not an equation\n:" ++ e),
@@ -28,6 +30,11 @@ when ¬abs.has_var $ (do lhs ← pp lhs, tgt ← pp tgt,
         ++ "  " ++ lhs ++ format.line
         ++ to_fmt "in" ++ format.line
         ++ "  " ++ tgt),
+when cfg.instances (do 
+    gs ← get_goals,
+    set_goals insts,
+    all_goals apply_instance <|> (fail $ to_fmt "rewrite_core: could not instantiate type classes"),
+    set_goals gs),
 let motive := lam `x binder_info.default A abs,
 type_check motive <|> (do m ← pp motive, fail $
     to_fmt "rewrite_core: motive does not type check\n" ++ m),
