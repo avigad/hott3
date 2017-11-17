@@ -60,10 +60,18 @@ h.left_id
 @[hsimp] lemma mul_one [has_mul α] [has_one α] [h : is_right_id α (*) 1] : ∀ a : α, a * 1 = a :=
 h.right_id
 
-@[hsimp] lemma inv_mul [has_mul α] [has_one α] [has_inv α] [h : is_left_inv α (*) has_inv.inv 1] : ∀ a : α, a⁻¹  * a = 1 :=
+@[hsimp] lemma mul_left_inv [has_mul α] [has_one α] [has_inv α] [h : is_left_inv α (*) has_inv.inv 1] : ∀ a : α, a⁻¹  * a = 1 :=
+h.left_inv
+
+-- alternate name
+lemma inv_mul [has_mul α] [has_one α] [has_inv α] [h : is_left_inv α (*) has_inv.inv 1] : ∀ a : α, a⁻¹  * a = 1 :=
 h.left_inv
 
 @[hsimp] lemma mul_inv [has_mul α] [has_one α] [has_inv α] [h : is_right_inv α (*) has_inv.inv 1] : ∀ a : α, a * a⁻¹ = 1 :=
+h.right_inv
+
+-- alternate name
+lemma mul_right_inv [has_mul α] [has_one α] [has_inv α] [h : is_right_inv α (*) has_inv.inv 1] : ∀ a : α, a * a⁻¹ = 1 :=
 h.right_inv
 
 lemma mul_left_cancel [has_mul α] [h : is_left_cancel α (*)] : ∀ {a b c : α}, a * b = a * c → b = c :=
@@ -71,8 +79,6 @@ is_left_cancel.left_cancel
 
 lemma mul_right_cancel [has_mul α] [h : is_right_cancel α (*)] : ∀ {a b c : α}, a * b = c * b → a = c :=
 h.right_cancel
-
-#exit
 
 --class semigroup (α : Type u) extends has_mul α :=
 --(mul_assoc : ∀ a b c : α, a * b * c = a * (b * c))
@@ -109,9 +115,6 @@ lemma mul_left_cancel_iff [has_mul α] [is_left_cancel α (*)] {a b c : α} : a 
 lemma mul_right_cancel_iff [has_mul α] [is_right_cancel α (*)] {a b c : α} : b * a = c * a ↔ b = c :=
 ⟨mul_right_cancel, by intro h; rwr h⟩
 
-def mul_left_inv := @inv_mul
-def mul_right_inv := @mul_inv
-
 -- TODO(Jeremy): get rid of is_right_inv etc.
 class is_group (α : Type _) (op : α → α → α) (o : α) (i : α → α) extends
   is_associative α op,
@@ -119,6 +122,12 @@ class is_group (α : Type _) (op : α → α → α) (o : α) (i : α → α) ex
   is_right_id α op o,
   is_left_inv α op i o,
   is_right_inv α op i o
+
+/-
+@[simp] lemma mul_right_inv (a : α) : a * a⁻¹ = 1 :=
+have a⁻¹⁻¹ * a⁻¹ = 1, by rw mul_left_inv,
+by rwa [inv_inv] at this
+-/
 
 section
 variables [has_mul α] [has_inv α] [has_one α] [is_group α (*) (has_one.one α) has_inv.inv]
@@ -129,47 +138,45 @@ by rwr [←mul_assoc, inv_mul, one_mul]
 @[hsimp] lemma inv_mul_cancel_right (a b : α) : a * b⁻¹ * b = a :=
 by rwr [mul_assoc, inv_mul, mul_one]
 
+lemma mul_inv_cancel_left (a b : α) : a * (a⁻¹ * b) = b :=
+by rwr [← mul_assoc, mul_right_inv, one_mul]
+
+lemma mul_inv_cancel_right (a b : α) : a * b * b⁻¹ = a :=
+by rwr [mul_assoc, mul_right_inv, mul_one]
+
 lemma inv_eq_of_mul_eq_one {a b : α} (h : a * b = 1) : a⁻¹ = b :=
 by rwr [← mul_one a⁻¹, ←h, ←mul_assoc, inv_mul, one_mul]
 
 @[hsimp] lemma one_inv : (1 : α)⁻¹ = 1 :=
 inv_eq_of_mul_eq_one (one_mul 1)
 
-@[simp] lemma inv_inv (a : α) : (a⁻¹)⁻¹ = a :=
+@[hsimp] lemma inv_inv (a : α) : (a⁻¹)⁻¹ = a :=
 inv_eq_of_mul_eq_one (mul_left_inv a)
 
-@[simp] lemma mul_right_inv (a : α) : a * a⁻¹ = 1 :=
-have a⁻¹⁻¹ * a⁻¹ = 1, by rw mul_left_inv,
-by rwa [inv_inv] at this
-
-def mul_inv_self := @mul_right_inv
-
 lemma inv_inj {a b : α} (h : a⁻¹ = b⁻¹) : a = b :=
-have a = a⁻¹⁻¹, by simp,
-begin rw this, simp [h] end
+by rwr [←(inv_inv a), h, inv_inv]
 
+-- TODO(Jeremy): why does this fail without the ←?
 lemma group.mul_left_cancel {a b c : α} (h : a * b = a * c) : b = c :=
-have a⁻¹ * (a * b) = b, by simp,
-begin simp [h] at this, rw this end
+have a⁻¹ * (a * b) = b, by rwr inv_mul_cancel_left,
+begin rwr [h, inv_mul_cancel_left] at this, rwr [←this] end
 
 lemma group.mul_right_cancel {a b c : α} (h : a * b = c * b) : a = c :=
-have a * b * b⁻¹ = a, by simp,
+have a * b * b⁻¹ = a, by rwr mul_inv_cancel_right,
 begin simp [h] at this, rw this end
 
+/-
 instance group.to_left_cancel_semigroup [s : group α] : left_cancel_semigroup α :=
 { s with mul_left_cancel := @group.mul_left_cancel α s }
 
 instance group.to_right_cancel_semigroup [s : group α] : right_cancel_semigroup α :=
 { s with mul_right_cancel := @group.mul_right_cancel α s }
+-/
 
-lemma mul_inv_cancel_left [group α] (a b : α) : a * (a⁻¹ * b) = b :=
-by rw [← mul_assoc, mul_right_inv, one_mul]
 
-lemma mul_inv_cancel_right [group α] (a b : α) : a * b * b⁻¹ = a :=
-by rw [mul_assoc, mul_right_inv, mul_one]
 
 @[simp] lemma mul_inv_rev [group α] (a b : α) : (a * b)⁻¹ = b⁻¹ * a⁻¹ :=
-inv_eq_of_mul_eq_one begin rw [mul_assoc, ← mul_assoc b, mul_right_inv, one_mul, mul_right_inv] end
+inv_eq_of_mul_eq_one begin rwr [mul_assoc, ← mul_assoc b, mul_right_inv, one_mul, mul_right_inv] end
 
 lemma eq_inv_of_eq_inv [group α] {a b : α} (h : a = b⁻¹) : b = a⁻¹ :=
 by simp [h]

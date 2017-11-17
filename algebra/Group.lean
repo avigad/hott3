@@ -42,10 +42,10 @@ section
     rwr [is_right_inv.right_inv (G.op) _ _, is_left_id.left_id (G.op) _ _ ]
   end
 
-  example : a * a⁻¹ * b = b :=
-  begin
+  --example : a * a⁻¹ * b = b :=
+  --begin
   --  rwr [Group_right_inv, Group_left_id]
-  end
+  --end
  
   /- works in classical library
   example : a * a⁻¹ * b = b :=
